@@ -30,11 +30,11 @@ module "vpc" {
 }
 
 # EKS 클러스터 생성
-module "eks" {
+module "test-eks-cluster" {
   source  = "terraform-aws-modules/eks/aws"
   version = "~> 20.0"
 
-  cluster_name    = "my-eks"
+  cluster_name    = "test-eks-cluster"
   cluster_version = "1.29"
 
   cluster_endpoint_private_access = true
@@ -73,7 +73,7 @@ module "eks" {
         role = "general"
       }
 
-      instance_types = ["t3.small"]
+      instance_types = ["m5.large"]
       capacity_type  = "ON_DEMAND"
     }
 
@@ -92,7 +92,7 @@ module "eks" {
         effect = "NO_SCHEDULE"
       }]
 
-      instance_types = ["t3.micro"]
+      instance_types = ["m5.large"]
       capacity_type  = "SPOT"
     }
   }
@@ -114,7 +114,7 @@ module "aws_load_balancer_controller_irsa_role" {
 
   oidc_providers = {
     ex = {
-      provider_arn               = module.eks.oidc_provider_arn
+      provider_arn               = module.test-eks-cluster.oidc_provider_arn
       namespace_service_accounts = ["kube-system:aws-load-balancer-controller"]
     }
   }
@@ -129,7 +129,7 @@ resource "helm_release" "aws_load_balancer_controller" {
 
   set {
     name  = "clusterName"
-    value = module.eks.cluster_name
+    value = module.test-eks-cluster.cluster_name
   }
 
   set {
@@ -142,4 +142,17 @@ resource "helm_release" "aws_load_balancer_controller" {
     value = module.aws_load_balancer_controller_irsa_role.iam_role_arn
   }
 
+}
+
+# Argo CD
+resource "helm_release" "argocd" {
+  name = "argocd"
+
+  repository       = "https://argoproj.github.io/argo-helm"
+  chart            = "argo-cd"
+  namespace        = "argocd"
+  create_namespace = true
+
+  values     = [file("argocd-value.yaml")]
+  depends_on = [helm_release.aws_load_balancer_controller]
 }
