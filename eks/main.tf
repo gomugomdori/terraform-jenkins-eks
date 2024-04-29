@@ -142,6 +142,7 @@ resource "helm_release" "aws_load_balancer_controller" {
     value = module.aws_load_balancer_controller_irsa_role.iam_role_arn
   }
 
+  depends_on = [module.aws_load_balancer_controller_irsa_role]
 }
 
 # Argo CD
