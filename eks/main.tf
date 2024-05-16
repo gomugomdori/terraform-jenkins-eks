@@ -154,6 +154,46 @@ resource "helm_release" "argocd" {
   namespace        = "argocd"
   create_namespace = true
 
-  values     = [file("argocd-value.yaml")]
+  values = [file("argocd-value.yaml")]
+
   depends_on = [helm_release.aws_load_balancer_controller]
+}
+
+# ArgoCD Ingress
+resource "kubernetes_ingress_v1" "argo_cd_ingress" {
+  metadata {
+    name      = "argocd-server-ingress"
+    namespace = "argocd"
+    annotations = {
+      "kubernetes.io/ingress.class"            = "alb"
+      "alb.ingress.kubernetes.io/scheme"       = "internet-facing"
+      "alb.ingress.kubernetes.io/target-type"  = "ip"
+      "alb.ingress.kubernetes.io/listen-ports" = jsonencode([{ "HTTP" : 80 }])
+      "alb.ingress.kubernetes.io/group.name"   = "gom-ingress"
+      "alb.ingress.kubernetes.io/group.order"  = "1"
+    }
+  }
+
+  spec {
+    ingress_class_name = "alb"
+    rule {
+      host = "argocd.gomugom.site"
+      http {
+        path {
+          backend {
+            service {
+              name = "argocd-server"
+              port {
+                number = 80
+              }
+            }
+          }
+          path      = "/"
+          path_type = "Prefix"
+        }
+      }
+    }
+  }
+
+  depends_on = [helm_release.argocd]
 }
